@@ -31,12 +31,12 @@ ints = listOf arbitrary
 
 nstr :: Gen [String]
 nstr = listOf1 arbitrary
-    
+
 main = do
-    print $ (msc as, msc' as)
-    print $ (msc bs, msc' bs)
-    print $ (msc cs, msc' cs)
-    print $ (msc ds, msc' ds)
+    print (msc as, msc' as)
+    print (msc bs, msc' bs)
+    print (msc cs, msc' cs)
+    print (msc ds, msc' ds)
 
     quickCheck . forAll ints $ \xs -> (not . null) xs ==> msc xs == msc' xs
     quickCheck . forAll nstr $ \xs -> msc xs == msc' xs
