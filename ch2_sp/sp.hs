@@ -1,6 +1,6 @@
 -- surpassing problem
 --
--- similar problem: # of inversions
+-- similar problem: # of inversions: gist 664069
 import Data.List
 import Test.QuickCheck
 
