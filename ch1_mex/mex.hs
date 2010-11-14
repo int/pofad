@@ -1,5 +1,6 @@
 import Data.List
 import Data.Array
+import qualified Data.Vector as V
 import Test.QuickCheck
 
 
@@ -10,13 +11,22 @@ minfree xs = head ([0..] \\ xs)
 search :: Array Int Bool -> Int
 search = length . takeWhile id . elems
 
+vsearch :: V.Vector Bool -> Int
+vsearch = V.length . V.takeWhile id
+
 -- pure functional
 checklist :: [Int] -> Array Int Bool
 checklist xs = accumArray (||) False (0, n) $ zip (filter ( <= n) xs) (repeat True)
     where n = length xs
 
+vchecklist :: [Int] -> V.Vector Bool
+vchecklist xs = V.accum (||) (V.replicate (n+1) False) $ zip (filter ( <= n) xs) (repeat True)
+    where n = length xs
+
 -- O(n) using array
 minfree' = search . checklist
+-- O(n) using Vector
+vminfree = vsearch . vchecklist
 
 -- just another example for using array
 countlist :: [Int] -> Int -> Array Int Int
@@ -36,10 +46,11 @@ minfrom a (n, xs) | n == 0 = a
 -- tests
 limit = 2^10
 nats = listOf . choose $ (0, limit)
-prop = forAll nats $ \x -> minfree x == minfree' x
+ok xs = all (== head xs) xs
+prop = forAll nats $ \x -> ok (map ($x) [minfree, minfree', vminfree])
 
 -- minfree'' assumes distinct input
-prop2 = forAll (fmap nub nats) $ \x -> minfree x == minfree' x && minfree' x == minfree'' x
+prop2 = forAll (fmap nub nats) $ \x -> ok (map ($x) [minfree, minfree', minfree'', vminfree])
 
 main = do
     print $ f [0..10]
