@@ -1,7 +1,11 @@
--- assuming f (x,y) is O(1) (though sometimes it can be expensive),
+-- assuming f (x,y) is O(1) (though sometimes it's not -- maybe expensive),
 -- we mainly analyze the complexity of counts of the f(x,y) evaluations
 --
--- in ghci, you can :set +s to see the running time of differnt versions
+-- note that, we take `f' as unknown black box. if you know and can inspect
+-- `f' in advance, you can use some specific optimizing techniques
+--
+-- in ghci, you can :set +s to see the running time of different versions
+--
 
 import Data.List (sort)
 import Test.QuickCheck
@@ -9,14 +13,73 @@ import Test.QuickCheck
 -- as always, the first is no-brainer brute. O(z^2)
 invert0 f z = [(x,y) | x <- [0..z], y <- [0..z], f (x,y) == z]
 
--- saddleback O(z)
-invert1 f z = find (0,z) f z
-find (u,v) f z
-    | u > z || v < 0 = []
-    | z' < z = find (u+1, v) f z
-    | z' > z = find (u, v-1) f z
-    | otherwise = (u,v) : find (u+1, v-1) f z
+-- elegant saddleback O(z)
+invert1 f z = find (0,z) f z z
+find (u,v) f z n
+    | u > n || v < 0 = []
+    | z' < z = find (u+1, v) f z n
+    | z' > z = find (u, v-1) f z n
+    | otherwise = (u,v) : find (u+1, v-1) f z n
     where z' = f (u,v)
+
+-- like invert1, but first get domain range.  O(logz + m + n)
+invert2 f z = find (0,m) f z n
+    where m = bsearch (\y -> f (0,y)) (-1,z+1) z
+          n = bsearch (\x -> f (x,0)) (-1,z+1) z
+
+-- biggest x in [a,b) s.t. g x <= z < g (x+1)
+bsearch g (a,b) z
+    | a+1 == b = a
+    | g m <= z = bsearch g (m,b) z
+    | otherwise = bsearch g (a,m) z
+    where m = (a+b) `div` 2
+
+-- like invert2, but just enumerate to get the range. O(m+n)
+invert2' f z = find (0,m) f z n
+    where m = last $ takeWhile (\y -> f(0, y) <= z) [0..]
+          n = last $ takeWhile (\x -> f(x, 0) <= z) [0..]
+
+-- divide & conquer take 1: split into three rectangles.
+-- O(logz + m^1.59*log(2n/m)) m = min(m,n), n = max(m, n)
+invert3 f z = find3 (0,m) (n,0) f z
+    where m = bsearch (\y -> f (0,y)) (-1,z+1) z
+          n = bsearch (\x -> f (x,0)) (-1,z+1) z
+
+find3 (u,v) (r,s) f z
+    | u > r || v < s = []
+    | z' < z = find (u,v) (p,q+1) ++ find (p+1,q-1) (r,s) ++ find (p+1,v) (r,q)
+    | z' > z = find (u,v) (p-1,q) ++ find (p+1,q-1) (r,s) ++ find (u,q-1) (p,s)
+    | otherwise = (p, q) : find (p+1,q-1) (r,s) ++ find (u,v) (p-1,q+1)
+    where p = (u + r) `div` 2
+          q = (v + s) `div` 2
+          z' = f (p, q)
+          find a b = find3 a b f z
+
+-- like invert3, but just enumerate to get the range.
+-- O(m + n + m^1.59*log(2n/m)) m = min(m,n), n = max(m, n)
+invert3' f z = find3 (0,m) (n,0) f z
+    where m = last $ takeWhile (\y -> f(0, y) <= z) [0..]
+          n = last $ takeWhile (\x -> f(x, 0) <= z) [0..]
+
+-- faster divide & conquer: binary search on a *fixed* row/col
+-- split into two-rectangles
+-- O(logz + mlog(n/m)) m = min(m,n), n = max(m, n)
+invert4 f z = find4 (0,m) (n,0) f z
+    where m = bsearch (\y -> f (0,y)) (-1,z+1) z
+          n = bsearch (\x -> f (x,0)) (-1,z+1) z
+
+find4 (u,v) (r,s) f z
+    | u > r || v < s = []
+    | v - s <= r - u = rfind (bsearch (\x -> f(x,q)) (u-1,r+1) z)
+    | otherwise = cfind (bsearch (\y -> f(p,y)) (s-1,v+1) z)
+    where p = (u + r) `div` 2
+          q = (v + s) `div` 2
+          rfind p = (if f (p,q) == z then (p,q):find4 (u,v) (p-1,q+1) f z
+                    else find4 (u,v) (p, q+1) f z) ++
+                    find4 (p+1, q-1) (r,s) f z
+          cfind q = find4 (u,v) (p-1,q+1) f z ++
+                    (if f (p,q) == z then (p,q):find4 (p+1,q-1) (r,s) f z
+                    else find4 (p+1, q) (r,s) f z)
 
 
 -- tests
@@ -30,7 +93,7 @@ f4 (x,y) = x + 2^y + y - 1
 
 same xs = all (== head xs) xs
 
-invs = [invert0, invert1]
+invs = [invert0, invert1, invert2, invert2', invert3, invert3', invert4]
 fs = [f0, f1, f2, f3, f4]
 
 results z f = map (r z f) invs
