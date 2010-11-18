@@ -10,7 +10,7 @@
 import Data.List (sort)
 import Test.QuickCheck
 import Control.Monad (liftM, liftM3)
-import Data.Function (on)
+import Data.Ord (comparing)
 
 -- as always, the first is no-brainer brute. O(z^2)
 invert0 f z = [(x,y) | x <- [0..z], y <- [0..z], f (x,y) == z]
@@ -128,16 +128,14 @@ instance Arbitrary Op where
 instance Arbitrary Expr where
     arbitrary =
         oneof [ liftM Const (elements [0..10])
-              --, elements [Var "x", Var "y"]
               , liftM Var (elements ["x", "y"])
               , liftM3 Bin arbitrary arbitrary arbitrary
               ]
 
-
 eval (Const x) _ = x
 eval (Var "x") (x,_) = x
 eval (Var "y") (_,y) = y
-eval (Bin o e1 e2) p = (f o) (eval e1 p) (eval e2 p)
+eval (Bin o e1 e2) p = f o (eval e1 p) (eval e2 p)
     where f Add = (+)
           f Mul = (*)
           f Pow = (^)
@@ -148,7 +146,7 @@ func = liftM (Bin Add xplusy) arbitrary
 prop' = forAll func $ \f -> prop (eval f)
 
 instance Ord Expr where
-    compare = compare `on` (length . show)
+    compare = comparing (length . show)
 
 main = do
     check f0
