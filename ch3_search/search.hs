@@ -9,6 +9,8 @@
 
 import Data.List (sort)
 import Test.QuickCheck
+import Control.Monad (liftM, liftM3)
+import Data.Function (on)
 
 -- as always, the first is no-brainer brute. O(z^2)
 invert0 f z = [(x,y) | x <- [0..z], y <- [0..z], f (x,y) == z]
@@ -36,8 +38,8 @@ bsearch g (a,b) z
 
 -- like invert2, but just enumerate to get the range. O(m+n)
 invert2' f z = find (0,m) f z n
-    where m = last $ takeWhile (\y -> f(0, y) <= z) [0..]
-          n = last $ takeWhile (\x -> f(x, 0) <= z) [0..]
+    where m = head $ dropWhile (\y -> f(0, y) < z) [0..]
+          n = head $ dropWhile (\x -> f(x, 0) < z) [0..]
 
 -- divide & conquer take 1: split into three rectangles.
 -- O(logz + m^1.59*log(2n/m)) m = min(m,n), n = max(m, n)
@@ -58,8 +60,8 @@ find3 (u,v) (r,s) f z
 -- like invert3, but just enumerate to get the range.
 -- O(m + n + m^1.59*log(2n/m)) m = min(m,n), n = max(m, n)
 invert3' f z = find3 (0,m) (n,0) f z
-    where m = last $ takeWhile (\y -> f(0, y) <= z) [0..]
-          n = last $ takeWhile (\x -> f(x, 0) <= z) [0..]
+    where m = head $ dropWhile (\y -> f(0, y) < z) [0..]
+          n = head $ dropWhile (\x -> f(x, 0) < z) [0..]
 
 -- faster divide & conquer: binary search on a *fixed* row/col
 -- split into two-rectangles
@@ -103,8 +105,59 @@ prop f = forAll nat $ \z -> same $ results z f
 check = quickCheck . prop
 checkall = quickCheck . conjoin $ map prop fs
 
+-- Lets generate random functions
+data Expr = Bin Op Expr Expr
+          | Const Integer
+          | Var String deriving (Eq)
+
+data Op = Add | Mul | Pow deriving (Eq, Enum)
+
+instance Show Op where
+    show Add = "+"
+    show Mul = "*"
+    show Pow = "^"
+
+instance Show Expr where
+    show (Const x) = show x
+    show (Var v) = v
+    show (Bin o e1 e2) = "(" ++ show e1 ++ show o ++ show e2 ++ ")"
+
+instance Arbitrary Op where
+    arbitrary = frequency [(64, return Add), (32, return Mul), (1, return Pow)]
+
+instance Arbitrary Expr where
+    arbitrary =
+        oneof [ liftM Const (elements [0..10])
+              --, elements [Var "x", Var "y"]
+              , liftM Var (elements ["x", "y"])
+              , liftM3 Bin arbitrary arbitrary arbitrary
+              ]
+
+
+eval (Const x) _ = x
+eval (Var "x") (x,_) = x
+eval (Var "y") (_,y) = y
+eval (Bin o e1 e2) p = (f o) (eval e1 p) (eval e2 p)
+    where f Add = (+)
+          f Mul = (*)
+          f Pow = (^)
+
+-- f(x,y) must be strictly increasing
+xplusy = Bin Add (Var "x") (Var "y")
+func = liftM (Bin Add xplusy) arbitrary
+prop' = forAll func $ \f -> prop (eval f)
+
+instance Ord Expr where
+    compare = compare `on` (length . show)
+
 main = do
     check f0
     check f3
     verboseCheck . prop $ f2
     checkall
+
+    f <- liftM maximum $ sample' func
+    putStrLn $ "find " ++ show f ++ " == 123:"
+    mapM_ print $ results 123 (eval f)
+
+    verboseCheck prop'
