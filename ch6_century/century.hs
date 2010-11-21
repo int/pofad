@@ -28,9 +28,11 @@ table = [[op "*" (*) AssocLeft], [op "+" (+) AssocLeft]]
 
 -- print helper
 doit ans digits = do
-    putStrLn $ "get " ++ show ans ++ " from " ++ show digits ++ ":\n"
-    mapM_ putStrLn $ solutions ans digits
+    putStrLn $ "get " ++ s ++ " from " ++ show digits ++ ":\n"
+    mapM_ (putStrLn . f) $ solutions ans digits
     putStrLn ""
+    where s = show ans
+          f x = s ++ " = " ++ x
 
 -- some examples
 main = do
