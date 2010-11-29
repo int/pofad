@@ -81,8 +81,9 @@ glue x ((xs:xss):xsss) =
 -- foldr fusion works like a pruning dfs
 good2 c (k,f,t,e) = f*t+e == c
 ok2 c (k,f,t,e) = f*t+e <= c
-solutions2 c = map (showExpr . fst) . filter (good2 c . snd) . foldr (expand c) []
-expand c x [] = [([[[x]]], (10,x,1,0))]
+solutions2 c = map (showExpr . fst) . filter (good2 c . snd) . foldr (expand c) [([],(0,0,0,0))]
+expand c x [] = []
+expand c x [([],_)] = [([[[x]]], (10,x,1,0))]
 expand c x es = concatMap (filter (ok2 c . snd) . glue2 x) es
 glue2 x ((xs:xss):xsss, (k,f,t,e)) =
     [ (((x:xs) : xss) : xsss, (10*k, k*x + f, t, e))
@@ -90,10 +91,10 @@ glue2 x ((xs:xss):xsss, (k,f,t,e)) =
     , ([[x]] : (xs:xss) : xsss, (10, x, 1, f*t + e))]
 
 -- tests
-digits = liftM (take 9) . listOf $ elements [0..9]
+digits = liftM (take 9) . listOf $ elements [1..9]
 dst = choose (1,1000)
 same xs = all (== head xs) xs
-run c ds = map (\s -> sort $ s c ds) [solutions, solutions1, solutions1]
+run c ds = map (\s -> sort $ s c ds) [solutions, solutions1, solutions2]
 prop = forAll (liftM2 (,) digits dst) $ \(ds, c) -> same $ run c ds
 
 -- some examples
